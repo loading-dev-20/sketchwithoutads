@@ -660,6 +660,81 @@
             .dialog-row input { font-size: 16px; padding: 6px; }
             .dialog-buttons button { font-size: 14px; padding: 9px 16px; }
         }
+
+        /* ===== Notepad mode ===== */
+
+        /* Sketchpad / Notepad switch at the right end of the menu bar */
+        .mode-switch { margin-left: auto; display: flex; align-items: center; }
+        .mode-switch button {
+            height: 18px; padding: 0 10px;
+            font: inherit; font-size: 11.5px; color: #000;
+            border: 1px solid #8e8f8f;
+            background: linear-gradient(#f2f2f2 0 45%, #dddddd 50% 100%);
+            cursor: default; position: relative;
+        }
+        .mode-switch button:first-child { border-radius: 3px 0 0 3px; }
+        .mode-switch button:last-child { border-radius: 0 3px 3px 0; margin-left: -1px; }
+        .mode-switch button:hover { border-color: #3c7fb1; background: linear-gradient(#eaf6fd 0 45%, #bee6fd 50% 100%); z-index: 1; }
+        .mode-switch button.on {
+            border-color: #2c628b; z-index: 2;
+            background: linear-gradient(#e5f4fc 0 45%, #98d1ef 50% 100%);
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.25);
+        }
+
+        /* Each mode shows only its own toolbar, canvas/pane and menu items */
+        .window[data-mode="note"] .only-sketch,
+        .window[data-mode="sketch"] .only-note { display: none !important; }
+        .window[data-mode="note"] #toolbar,
+        .window[data-mode="note"] .workspace { display: none; }
+        .window[data-mode="sketch"] #noteBar,
+        .window[data-mode="sketch"] .note-pane { display: none; }
+
+        .note-pane {
+            flex: 1; min-height: 0; display: flex; overflow: hidden;
+            background: var(--paper-raw, #fff);
+            border-top: 1px solid #a0a0a0;
+        }
+        .note-text {
+            width: 100%; height: 100%;
+            border: none; resize: none; outline: none; margin: 0;
+            padding: 8px 10px;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 14px; line-height: 1.6;
+            color: #000;
+            background: var(--paper-raw, #fff);
+            filter: var(--canvas-filter, none);
+            white-space: pre; overflow: auto; tab-size: 4;
+            user-select: text; -webkit-user-select: text;
+        }
+        .note-text.wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+        .font-dialog { width: min(400px, calc(100% - 24px)); }
+        .font-dialog .dialog-row { margin-bottom: 10px; }
+        .font-dialog .dialog-row label { width: 90px; flex-shrink: 0; }
+        .font-dialog .psel { font-size: 12px; padding: 3px; }
+
+        @media (max-width: 480px) {
+            .menu-item { padding: 8px 5px; }
+            .mode-switch { margin-right: 4px; }
+            .mode-switch button { padding: 0 6px; font-size: 12px; }
+        }
+        @media (pointer: coarse) {
+            .mode-switch button { height: 30px; font-size: 13px; }
+        }
+
+        /* Print / "Save as PDF" from the browser: only the note, as real text */
+        #printArea { display: none; }
+        @media print {
+            html, body { height: auto !important; overflow: visible !important; background: #fff !important; display: block !important; }
+            body > * { display: none !important; }
+            body > #printArea {
+                display: block !important; position: static;
+                white-space: pre-wrap; overflow-wrap: anywhere;
+                color: #000; line-height: 1.6;
+                user-select: text; -webkit-user-select: text;
+            }
+            @page { margin: 18mm; }
+        }
     </style>
 </head>
 <body>
@@ -707,7 +782,7 @@
                 }
             }
         ];
-        const THEME_VARS = ['--title-a', '--title-b', '--title-fg', '--title-shadow', '--ctl-hover', '--tool-a', '--tool-b', '--paper', '--canvas-filter'];
+        const THEME_VARS = ['--paper-raw', '--title-a', '--title-b', '--title-fg', '--title-shadow', '--ctl-hover', '--tool-a', '--tool-b', '--paper', '--canvas-filter'];
         let currentTheme = THEMES[0];
 
         function applyTheme(id, persist) {
@@ -716,6 +791,7 @@
             const root = document.documentElement.style;
             THEME_VARS.forEach(v => root.removeProperty(v));
             Object.keys(t.vars).forEach(v => root.setProperty(v, t.vars[v]));
+            root.setProperty('--paper-raw', t.paper); // paper before any dark-mode inversion
             const b = document.body.style;
             b.background = t.bg;
             b.backgroundSize = 'cover';
@@ -729,6 +805,9 @@
         try { applyTheme(localStorage.getItem(THEME_KEY) || 'win7'); } catch (e) { applyTheme('win7'); }
     </script>
 
+    <!-- Printable copy of the note (only visible when printing) -->
+    <div id="printArea"></div>
+
     <!-- Right-click menu on the desktop -->
     <div class="ctx-menu" id="ctxMenu">
         <div class="dropdown-item" onclick="openPersonalize()">Personalize</div>
@@ -739,9 +818,9 @@
         <symbol id="appIcon" viewBox="0 0 32 32"><path d="M7 3H21L27 9V27a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="#fff3a8" stroke="#a8821a" stroke-width="1.4" stroke-linejoin="round"/><path d="M21 3V9H27z" fill="#e6c84f" stroke="#a8821a" stroke-width="1.4" stroke-linejoin="round"/><path d="M9 14H23M9 18.5H23M9 23H18" stroke="#7a6420" stroke-width="1.6" stroke-linecap="round" fill="none"/></symbol>
     </svg>
 
-    <input type="file" id="fileInput" accept=".json,application/json" style="display: none;">
+    <input type="file" id="fileInput" accept=".json,.txt,application/json,text/plain" style="display: none;">
 
-    <div class="window" id="mainWindow">
+    <div class="window" id="mainWindow" data-mode="sketch">
         <!-- Title Bar -->
         <div class="title-bar" id="dragWindow">
             <div class="title-bar-text" id="windowTitle">
@@ -764,7 +843,9 @@
                     <div class="dropdown-item" onclick="saveFile()">Save <span class="shortcut">Ctrl+S</span></div>
                     <div class="dropdown-item" onclick="saveFileAs()">Save As...</div>
                     <div class="dropdown-divider"></div>
-                    <div class="dropdown-item" onclick="exportPNG()">Export as PNG...</div>
+                    <div class="dropdown-item only-sketch" onclick="exportPNG()">Export as PNG...</div>
+                    <div class="dropdown-item only-note" onclick="exportPDF()">Export as PDF...</div>
+                    <div class="dropdown-item only-note" onclick="printNote()">Print... <span class="shortcut">Ctrl+P</span></div>
                     <div class="dropdown-divider"></div>
                     <div class="dropdown-item" onclick="closeApp()">Exit</div>
                 </div>
@@ -774,21 +855,26 @@
                     <div class="dropdown-item" onclick="undo()">Undo <span class="shortcut">Ctrl+Z</span></div>
                     <div class="dropdown-item" onclick="redo()">Redo <span class="shortcut">Ctrl+Y</span></div>
                     <div class="dropdown-divider"></div>
-                    <div class="dropdown-item" onclick="cutSel()">Cut <span class="shortcut">Ctrl+X</span></div>
-                    <div class="dropdown-item" onclick="copySel()">Copy <span class="shortcut">Ctrl+C</span></div>
-                    <div class="dropdown-item" onclick="pasteClip()">Paste <span class="shortcut">Ctrl+V</span></div>
-                    <div class="dropdown-item" onclick="duplicateSelected()">Duplicate <span class="shortcut">Ctrl+D</span></div>
-                    <div class="dropdown-item" onclick="deleteSelected()">Delete <span class="shortcut">Del</span></div>
+                    <div class="dropdown-item" onclick="editCut()">Cut <span class="shortcut">Ctrl+X</span></div>
+                    <div class="dropdown-item" onclick="editCopy()">Copy <span class="shortcut">Ctrl+C</span></div>
+                    <div class="dropdown-item" onclick="editPaste()">Paste <span class="shortcut">Ctrl+V</span></div>
+                    <div class="dropdown-item only-sketch" onclick="duplicateSelected()">Duplicate <span class="shortcut">Ctrl+D</span></div>
+                    <div class="dropdown-item" onclick="editDelete()">Delete <span class="shortcut">Del</span></div>
                     <div class="dropdown-divider"></div>
-                    <div class="dropdown-item" onclick="selectAll()">Select All <span class="shortcut">Ctrl+A</span></div>
+                    <div class="dropdown-item" onclick="editSelectAll()">Select All <span class="shortcut">Ctrl+A</span></div>
+                    <div class="dropdown-divider only-note"></div>
+                    <div class="dropdown-item only-note" onclick="showGoTo()">Go To... <span class="shortcut">Ctrl+G</span></div>
+                    <div class="dropdown-item only-note" onclick="insertTimeDate()">Time/Date <span class="shortcut">F5</span></div>
                 </div>
             </div>
             <div class="menu-item" onclick="toggleMenu(this)">Format
                 <div class="dropdown">
-                    <div class="dropdown-item" onclick="reorder('front')">Bring to Front <span class="shortcut">Ctrl+Shift+]</span></div>
-                    <div class="dropdown-item" onclick="reorder('forward')">Bring Forward <span class="shortcut">Ctrl+]</span></div>
-                    <div class="dropdown-item" onclick="reorder('backward')">Send Backward <span class="shortcut">Ctrl+[</span></div>
-                    <div class="dropdown-item" onclick="reorder('back')">Send to Back <span class="shortcut">Ctrl+Shift+[</span></div>
+                    <div class="dropdown-item only-note" onclick="toggleWordWrap()">Word Wrap <span id="wrapCheck"></span></div>
+                    <div class="dropdown-item only-note" onclick="openFontDialog()">Font...</div>
+                    <div class="dropdown-item only-sketch" onclick="reorder('front')">Bring to Front <span class="shortcut">Ctrl+Shift+]</span></div>
+                    <div class="dropdown-item only-sketch" onclick="reorder('forward')">Bring Forward <span class="shortcut">Ctrl+]</span></div>
+                    <div class="dropdown-item only-sketch" onclick="reorder('backward')">Send Backward <span class="shortcut">Ctrl+[</span></div>
+                    <div class="dropdown-item only-sketch" onclick="reorder('back')">Send to Back <span class="shortcut">Ctrl+Shift+[</span></div>
                 </div>
             </div>
             <div class="menu-item" onclick="toggleMenu(this)">View
@@ -796,11 +882,11 @@
                     <div class="dropdown-item" onclick="zoomBy(1.25)">Zoom In <span class="shortcut">Ctrl++</span></div>
                     <div class="dropdown-item" onclick="zoomBy(0.8)">Zoom Out <span class="shortcut">Ctrl+-</span></div>
                     <div class="dropdown-item" onclick="resetZoom()">Actual Size <span class="shortcut">Ctrl+0</span></div>
-                    <div class="dropdown-item" onclick="zoomFit()">Zoom to Fit</div>
-                    <div class="dropdown-divider"></div>
-                    <div class="dropdown-item" onclick="toggleGrid()">Show Grid <span id="gridCheck" class="shortcut"></span></div>
-                    <div class="dropdown-item" onclick="toggleSnap()">Snap to Grid <span id="snapCheck" class="shortcut"></span></div>
-                    <div class="dropdown-item" onclick="togglePanel()">Properties Panel <span id="panelCheck" class="shortcut"></span></div>
+                    <div class="dropdown-item only-sketch" onclick="zoomFit()">Zoom to Fit</div>
+                    <div class="dropdown-divider only-sketch"></div>
+                    <div class="dropdown-item only-sketch" onclick="toggleGrid()">Show Grid <span id="gridCheck"></span></div>
+                    <div class="dropdown-item only-sketch" onclick="toggleSnap()">Snap to Grid <span id="snapCheck"></span></div>
+                    <div class="dropdown-item only-sketch" onclick="togglePanel()">Properties Panel <span id="panelCheck"></span></div>
                     <div class="dropdown-divider"></div>
                     <div class="dropdown-item" onclick="openPersonalize()">Personalize...</div>
                 </div>
@@ -811,16 +897,26 @@
                     <div class="dropdown-item" onclick="showAbout()">About Sketchpad</div>
                 </div>
             </div>
+            <div class="mode-switch" role="group" aria-label="Mode">
+                <button id="modeSketch" class="on" title="Draw and sketch" onclick="setMode('sketch')">Sketchpad</button>
+                <button id="modeNote" title="Write a note" onclick="setMode('note')">Notepad</button>
+            </div>
         </div>
 
         <!-- Toolbar (filled in by script) -->
         <div class="toolbar" id="toolbar"></div>
+        <div class="toolbar" id="noteBar"></div>
 
         <div class="workspace">
             <div class="props" id="props"></div>
             <div class="stage" id="stage">
                 <canvas id="board"></canvas>
             </div>
+        </div>
+
+        <!-- Notepad mode -->
+        <div class="note-pane">
+            <textarea class="note-text" id="noteText" spellcheck="false" autocomplete="off" aria-label="Note"></textarea>
         </div>
 
         <div class="status-bar">
@@ -881,6 +977,40 @@
                 <div class="dialog-buttons">
                     <button onclick="confirmSaveAs()">Save</button>
                     <button onclick="cancelSaveAs()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Go To Dialog (notepad) -->
+        <div class="dialog-overlay" id="goToDialog">
+            <div class="dialog">
+                <div class="dialog-title">Go To Line</div>
+                <div class="dialog-content">
+                    <div class="dialog-row">
+                        <label for="lineNumber">Line number:</label>
+                        <input type="number" id="lineNumber" min="1" value="1">
+                    </div>
+                </div>
+                <div class="dialog-buttons">
+                    <button onclick="goToLine()">Go To</button>
+                    <button onclick="closeDialog('goToDialog')">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Font Dialog (notepad: separate English and Khmer fonts) -->
+        <div class="dialog-overlay" id="fontDialog">
+            <div class="dialog font-dialog">
+                <div class="dialog-title">Font</div>
+                <div class="dialog-content">
+                    <div class="dialog-row"><label for="nfEn">English font:</label><select id="nfEn" class="psel"></select></div>
+                    <div class="dialog-row"><label for="nfKm">Khmer font:</label><select id="nfKm" class="psel"></select></div>
+                    <div class="dialog-row"><label for="nfSize">Size:</label><select id="nfSize" class="psel"></select></div>
+                    <div class="fpreview" id="nfPreview"></div>
+                </div>
+                <div class="dialog-buttons">
+                    <button onclick="confirmFont()">OK</button>
+                    <button onclick="cancelFont()">Cancel</button>
                 </div>
             </div>
         </div>
@@ -1041,6 +1171,12 @@
             undo:    '<path d="M8 6L4 10l4 4M4 10h10a5 5 0 0 1 0 10h-4"/>',
             redo:    '<path d="M16 6l4 4-4 4M20 10H10a5 5 0 0 0 0 10h4"/>',
             grid:    '<path d="M4 4h16v16H4zM4 9.3h16M4 14.7h16M9.3 4v16M14.7 4v16"/>',
+            fnew:    '<path d="M6 3h8l5 5v13H6zM14 3v5h5"/>',
+            fopen:   '<path d="M3 6h6l2 2h10v11H3zM3 11h18"/>',
+            fsave:   '<path d="M5 4h12l3 3v13H5zM8 4v5h8V4M8 20v-6h8v6"/>',
+            fpdf:    '<path d="M6 3h8l5 5v13H6zM14 3v5h5"/><text x="12.5" y="17.5" font-size="6.5" font-weight="700" text-anchor="middle" fill="currentColor" stroke="none" font-family="Arial,sans-serif">PDF</text>',
+            wrap:    '<path d="M4 6h16M4 12h12a3 3 0 0 1 0 6h-4M4 18h4M13 16l-2 2 2 2"/>',
+            font:    '<path d="M3 19l5-14 5 14M5 14h6M15 19l2.5-7 2.5 7M16 17h3"/>',
             palette: '<path d="M12 3a9 9 0 1 0 0 18c1.5 0 2.1-1.1 1.6-2.3-.5-1.2.3-2.2 1.6-2.2H17a4 4 0 0 0 4-4c0-5-4-9.5-9-9.5z"/><circle cx="7.6" cy="11.2" r="1" fill="currentColor"/><circle cx="10.2" cy="7.4" r="1" fill="currentColor"/><circle cx="15" cy="7.8" r="1" fill="currentColor"/>',
             panel:   '<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="1.8" fill="#fff"/><circle cx="15" cy="12" r="1.8" fill="#fff"/><circle cx="8" cy="17" r="1.8" fill="#fff"/>'
         };
@@ -1096,6 +1232,11 @@
         let dirtyLive = false;
         let currentFileName = null;
         let nextId = 1;
+        let mode = 'sketch';       // 'sketch' | 'note'
+        let noteFileName = null;
+        let noteWrap = false;
+        const noteCfg = { fontEn: 'code', fontKm: 'noto', size: 14, zoom: 1 };
+        const NOTE_KEY = 'win7_sketchpad_note', NOTE_CFG_KEY = 'win7_sketchpad_notecfg', MODE_KEY = 'win7_sketchpad_mode';
 
         const style = {
             stroke: '#1e1e1e', fill: 'transparent', fillStyle: 'hachure',
@@ -1605,8 +1746,9 @@
             view.zoom = z; view.x = sx - wx * z; view.y = sy - wy * z;
             afterView();
         }
-        function zoomBy(f) { commitText(); zoomAt(stage.clientWidth / 2, stage.clientHeight / 2, f); }
+        function zoomBy(f) { if (mode === 'note') { noteZoomBy(f); return; } commitText(); zoomAt(stage.clientWidth / 2, stage.clientHeight / 2, f); }
         function resetZoom() {
+            if (mode === 'note') { noteZoomReset(); return; }
             commitText();
             const cx = stage.clientWidth / 2, cy = stage.clientHeight / 2;
             const wx = (cx - view.x) / view.zoom, wy = (cy - view.y) / view.zoom;
@@ -1670,8 +1812,8 @@
             selected = new Set([...selected].filter(id => elements.some(e => e.id === id)));
             onChanged(); updatePanel();
         }
-        function undo() { commitText(); if (hIdx > 0) { hIdx--; restoreSnapshot(); } }
-        function redo() { commitText(); if (hIdx < history.length - 1) { hIdx++; restoreSnapshot(); } }
+        function undo() { if (mode === 'note') { noteExec('undo'); return; } commitText(); if (hIdx > 0) { hIdx--; restoreSnapshot(); } }
+        function redo() { if (mode === 'note') { noteExec('redo'); return; } commitText(); if (hIdx < history.length - 1) { hIdx++; restoreSnapshot(); } }
 
         // =====================================================================
         //  File sanitising (anything loaded from disk / storage)
@@ -2529,7 +2671,7 @@
             document.getElementById('msgOk').focus();
         }
         function showShortcuts() {
-            const rows = [
+            const sketchRows = [
                 ['V / 1', 'Select'], ['H / Space', 'Hand (pan)'], ['R / 2', 'Rectangle'], ['D / 3', 'Diamond'],
                 ['O / 4', 'Ellipse'], ['A / 5', 'Arrow'], ['L / 6', 'Line'], ['P / 7', 'Pencil'],
                 ['T / 8', 'Text'], ['E / 0', 'Eraser'], ['Q', 'Keep tool active'],
@@ -2537,28 +2679,56 @@
                 ['Del', 'Delete'], ['Arrows', 'Nudge (Shift = 10px)'], ['Shift', 'Square, circle, 15° angles'],
                 ['Ctrl+Wheel', 'Zoom'], ['Ctrl+\'', 'Toggle grid'], ['Dbl-click', 'Add / edit text']
             ];
+            const noteRows = [
+                ['Ctrl+N / O / S', 'New / Open / Save (.txt)'], ['Ctrl+P', 'Print (or Save as PDF with real text)'],
+                ['Ctrl+Z / Y', 'Undo / Redo'], ['Ctrl+A', 'Select all'], ['Ctrl+G', 'Go to line'],
+                ['F5', 'Insert time and date'], ['Tab', 'Insert a tab'],
+                ['Ctrl+Wheel', 'Zoom text'], ['Ctrl + / - / 0', 'Zoom in / out / reset']
+            ];
+            const rows = mode === 'note' ? noteRows : sketchRows;
             showMessage('Keyboard Shortcuts', '<table class="keys">' + rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('') + '</table>');
         }
         function showAbout() {
-            showMessage('About Sketchpad', 'Sketchpad<br><span style="font-size:12px;color:#444">A hand-drawn style whiteboard in a Windows 7 window. Your drawing lives only in this tab session; use File &gt; Save to keep it.</span>');
+            showMessage('About Sketchpad', 'Sketchpad &amp; Notepad<br><span style="font-size:12px;color:#444">A hand-drawn style whiteboard and a plain notepad in a Windows 7 window. Switch with the buttons at the top right. Your work lives only in this tab session; use File &gt; Save to keep it.</span>');
         }
 
         // =====================================================================
         //  Windows 7 style "Save changes?" confirmation + file operations
+        //  (every command works on the current mode: drawing -> .json, note -> .txt)
         // =====================================================================
         let pendingAction = null; // 'close' or 'new'
 
+        const fileNameOf = () => mode === 'note' ? noteFileName : currentFileName;
+        const setFileName = (n) => { if (mode === 'note') noteFileName = n; else currentFileName = n; };
+        const fileExt = () => mode === 'note' ? '.txt' : '.json';
+        const extRe = () => mode === 'note' ? /\.txt$/i : /\.json$/i;
+        function hasContent() { return mode === 'note' ? noteText.value.trim() !== '' : elements.length > 0; }
+        function refreshTitle() {
+            document.getElementById('titleText').textContent =
+                `${fileNameOf() || 'Untitled'} - ${mode === 'note' ? 'Notepad' : 'Sketchpad'}`;
+        }
+
         function confirmSaveChanges(action) {
             commitText();
-            if (elements.length === 0) { runPendingAction(action); return; }
+            if (!hasContent()) { runPendingAction(action); return; }
             pendingAction = action;
             document.getElementById('confirmMessage').textContent =
-                `Do you want to save the changes to ${currentFileName || 'Untitled'}?`;
+                `Do you want to save the changes to ${fileNameOf() || 'Untitled'}?`;
             document.getElementById('saveConfirmDialog').classList.add('show');
             document.getElementById('confirmSaveBtn').focus();
         }
 
         function clearSession() {
+            if (mode === 'note') {
+                clearTimeout(noteSaveTimeout);
+                noteText.value = '';
+                try { sessionStorage.removeItem(NOTE_KEY); } catch (e) {}
+                noteFileName = null;
+                autosaveStatus.textContent = 'Session only';
+                autosaveStatus.classList.remove('saved');
+                refreshTitle(); updateNoteStats();
+                return;
+            }
             clearTimeout(saveTimeout);
             elements = []; selected.clear(); erasing = new Set();
             view = { x: 0, y: 0, zoom: 1 };
@@ -2566,7 +2736,7 @@
             autosaveStatus.textContent = 'Session only';
             autosaveStatus.classList.remove('saved');
             currentFileName = null;
-            updateTitle('Untitled');
+            refreshTitle();
             resetHistory(); updatePanel(); afterView();
         }
 
@@ -2588,10 +2758,6 @@
         function closeApp() { confirmSaveChanges('close'); }
         function newFile() { confirmSaveChanges('new'); }
 
-        function updateTitle(filename) {
-            document.getElementById('titleText').textContent = `${filename} - Sketchpad`;
-        }
-
         function downloadBlob(blob, name) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -2605,9 +2771,17 @@
             downloadBlob(new Blob([data], { type: 'application/json' }), name);
         }
 
+        function downloadNote(name) {
+            // Windows line endings, and a UTF-8 marker when the note has Khmer (or any
+            // non-ASCII text) so older Windows Notepad reads it correctly.
+            const t = noteText.value.replace(/\r?\n/g, '\r\n');
+            const bom = /[^\x00-\x7F]/.test(t) ? '﻿' : '';
+            downloadBlob(new Blob([bom + t], { type: 'text/plain;charset=utf-8' }), name);
+        }
+
         function afterSaved(name, after) {
             if (CLEAR_AFTER_SAVE) clearSession();
-            else { currentFileName = name; updateTitle(name); }
+            else { setFileName(name); refreshTitle(); }
             if (after) after();
         }
 
@@ -2616,9 +2790,10 @@
         function saveFile(afterSave) {
             if (typeof afterSave !== 'function') afterSave = null;
             commitText();
-            if (currentFileName) {
-                downloadDrawing(currentFileName);
-                afterSaved(currentFileName, afterSave);
+            const name = fileNameOf();
+            if (name) {
+                if (mode === 'note') downloadNote(name); else downloadDrawing(name);
+                afterSaved(name, afterSave);
             } else showSaveAs(afterSave);
         }
         function saveFileAs() { commitText(); showSaveAs(null); }
@@ -2628,19 +2803,20 @@
 
         function showSaveAs(afterSave) {
             afterSaveAction = afterSave || null;
-            saveAsInput.value = currentFileName || 'Untitled.json';
+            saveAsInput.value = fileNameOf() || ('Untitled' + fileExt());
+            document.getElementById('saveAsType').value = mode === 'note' ? 'Text Documents (*.txt)' : 'Sketch Drawings (*.json)';
             document.getElementById('saveAsDialog').classList.add('show');
             saveAsInput.focus();
-            saveAsInput.setSelectionRange(0, saveAsInput.value.replace(/\.json$/i, '').length);
+            saveAsInput.setSelectionRange(0, saveAsInput.value.replace(extRe(), '').length);
         }
         function confirmSaveAs() {
             let name = saveAsInput.value.trim().replace(/[\\\/:*?"<>|]/g, '');
-            if (name === '' || name.toLowerCase() === '.json') { saveAsInput.focus(); return; }
-            if (!/\.json$/i.test(name)) name += '.json';
+            if (name === '' || name.toLowerCase() === fileExt()) { saveAsInput.focus(); return; }
+            if (!extRe().test(name)) name += fileExt();
             const after = afterSaveAction;
             afterSaveAction = null;
             closeDialog('saveAsDialog');
-            downloadDrawing(name);
+            if (mode === 'note') downloadNote(name); else downloadDrawing(name);
             afterSaved(name, after);
         }
         function cancelSaveAs() {
@@ -2649,23 +2825,27 @@
         }
         saveAsInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmSaveAs(); });
 
+        // Open: .txt opens in Notepad, .json opens in Sketchpad (the mode follows the file)
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
+            const isText = /\.txt$/i.test(file.name) || (file.type === 'text/plain' && !/\.json$/i.test(file.name));
             const reader = new FileReader();
             reader.onload = (ev) => {
+                if (isText) { openNoteText(ev.target.result, file.name); return; }
                 try {
                     const d = JSON.parse(ev.target.result);
                     const list = sanitizeList(Array.isArray(d) ? d : d.elements);
                     if (!list.length && !(d && Array.isArray(d.elements) && d.elements.length === 0)) throw new Error('empty');
+                    setMode('sketch');
                     commitText();
                     elements = list; selected.clear();
                     currentFileName = file.name;
-                    updateTitle(file.name);
+                    refreshTitle();
                     resetHistory(); updatePanel(); zoomFit();
                     ensureFonts(elements.filter(e => e.type === 'text'));
                 } catch (err) {
-                    showMessage('Open', 'This file is not a Sketchpad drawing, or it is damaged.');
+                    showMessage('Open', 'This file is not a Sketchpad drawing or a text note, or it is damaged.');
                 }
             };
             reader.readAsText(file);
@@ -2695,6 +2875,387 @@
         }
 
         // =====================================================================
+        //  Notepad mode
+        // =====================================================================
+        const noteText = document.getElementById('noteText');
+        const noteBar = document.getElementById('noteBar');
+        const NOTE_HINT = 'Type your note  |  Ctrl+S saves a .txt file  |  File > Export as PDF';
+        let noteSaveTimeout;
+
+        function updateNoteStats() {
+            if (mode !== 'note') return;
+            const v = noteText.value, pos = noteText.selectionStart || 0;
+            const before = v.substring(0, pos).split('\n');
+            document.getElementById('statusPos').textContent = `Ln ${before.length}, Col ${before[before.length - 1].length + 1}`;
+            document.getElementById('objCount').textContent = `${v.length} characters`;
+        }
+
+        function saveNoteToStorage() {
+            autosaveStatus.textContent = 'Saving...';
+            autosaveStatus.classList.remove('saved');
+            clearTimeout(noteSaveTimeout);
+            noteSaveTimeout = setTimeout(() => {
+                try {
+                    if (noteText.value) sessionStorage.setItem(NOTE_KEY, noteText.value);
+                    else sessionStorage.removeItem(NOTE_KEY);
+                } catch (e) {}
+                autosaveStatus.textContent = 'Session only';
+                autosaveStatus.classList.add('saved');
+            }, 500);
+        }
+        function saveNoteCfg() {
+            try { sessionStorage.setItem(NOTE_CFG_KEY, JSON.stringify({ ...noteCfg, wrap: noteWrap })); } catch (e) {}
+        }
+
+        function applyNoteFont() {
+            noteText.style.fontFamily = fontStack({ fontEn: noteCfg.fontEn, fontKm: noteCfg.fontKm });
+            noteText.style.fontSize = Math.max(COARSE ? 16 : 6, noteCfg.size * noteCfg.zoom) + 'px';
+            noteText.style.lineHeight = '1.6'; // roomy enough for Khmer vowels and sub-consonants
+            ensureFonts([{ fontEn: noteCfg.fontEn, fontKm: noteCfg.fontKm, text: noteText.value }]);
+        }
+
+        function noteZoomBy(f) {
+            noteCfg.zoom = clamp(Math.round(noteCfg.zoom * f * 20) / 20, 0.5, 3);
+            applyNoteFont(); refreshStatus(); saveNoteCfg();
+        }
+        function noteZoomReset() { noteCfg.zoom = 1; applyNoteFont(); refreshStatus(); saveNoteCfg(); }
+
+        function updateWrapUI() {
+            const c = document.getElementById('wrapCheck');
+            if (c) c.textContent = noteWrap ? '✓' : '';
+            const b = document.getElementById('nb-wrap');
+            if (b) b.classList.toggle('on', noteWrap);
+        }
+        function toggleWordWrap() {
+            noteWrap = !noteWrap;
+            noteText.classList.toggle('wrap', noteWrap);
+            updateWrapUI(); saveNoteCfg(); closeMenus();
+        }
+
+        // ---- Edit commands (menu/toolbar), dispatched by mode
+        function noteExec(cmd) { noteText.focus(); document.execCommand(cmd); updateNoteStats(); }
+        function notePaste() {
+            noteText.focus();
+            const fallback = () => {
+                if (!document.execCommand('paste')) showMessage('Paste', 'Your browser blocked the Paste button. Press Ctrl+V instead.');
+            };
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText()
+                    .then(t => { noteText.focus(); document.execCommand('insertText', false, t); })
+                    .catch(fallback);
+            } else fallback();
+        }
+        function editCut() { if (mode === 'note') noteExec('cut'); else cutSel(); }
+        function editCopy() { if (mode === 'note') noteExec('copy'); else copySel(); }
+        function editPaste() { if (mode === 'note') notePaste(); else pasteClip(); }
+        function editDelete() {
+            if (mode === 'note') {
+                noteText.focus();
+                if (noteText.selectionStart !== noteText.selectionEnd) document.execCommand('delete');
+            } else deleteSelected();
+        }
+        function editSelectAll() {
+            if (mode === 'note') { noteText.focus(); noteText.select(); updateNoteStats(); }
+            else selectAll();
+        }
+        function insertTimeDate() {
+            noteText.focus();
+            const d = new Date();
+            const t = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + ' ' + d.toLocaleDateString();
+            document.execCommand('insertText', false, t);
+        }
+
+        // ---- Go To line
+        function showGoTo() {
+            closeMenus();
+            document.getElementById('goToDialog').classList.add('show');
+            const n = document.getElementById('lineNumber');
+            n.focus(); n.select();
+        }
+        function goToLine() {
+            const lineNum = parseInt(document.getElementById('lineNumber').value, 10);
+            if (isNaN(lineNum) || lineNum < 1) return;
+            const lines = noteText.value.split('\n');
+            const target = Math.min(lineNum, lines.length);
+            let idx = 0;
+            for (let i = 0; i < target - 1; i++) idx += lines[i].length + 1;
+            closeDialog('goToDialog');
+            noteText.focus();
+            noteText.setSelectionRange(idx, idx);
+            if (!noteWrap) {
+                const lh = parseFloat(getComputedStyle(noteText).lineHeight) || 20;
+                noteText.scrollTop = Math.max(0, (target - 1) * lh - noteText.clientHeight / 2);
+            } else { noteText.blur(); noteText.focus(); }
+            updateNoteStats();
+        }
+        document.getElementById('lineNumber').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); goToLine(); } });
+
+        // ---- Font dialog: separate English and Khmer fonts, like the sketch text
+        let fontBackup = null;
+        function buildFontDialog() {
+            const fill = (id, list) => list.forEach(([k, label]) => {
+                const o = document.createElement('option'); o.value = k; o.textContent = label; $(id).appendChild(o);
+            });
+            fill('#nfEn', EN_LIST.map(f => [f[0], f[1]]));
+            fill('#nfKm', KM_LIST.map(f => [f[0], f[1]]));
+            fill('#nfSize', [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 40, 48].map(n => [n, n]));
+            $('#nfPreview').textContent = SAMPLE_TEXT;
+            ['#nfEn', '#nfKm', '#nfSize'].forEach(id => {
+                $(id).onchange = () => {
+                    noteCfg.fontEn = $('#nfEn').value; noteCfg.fontKm = $('#nfKm').value; noteCfg.size = +$('#nfSize').value;
+                    applyNoteFont(); updateFontPreview();
+                };
+            });
+        }
+        function updateFontPreview() {
+            const pv = $('#nfPreview');
+            pv.style.fontFamily = fontStack({ fontEn: noteCfg.fontEn, fontKm: noteCfg.fontKm });
+            pv.style.fontSize = Math.max(10, noteCfg.size) + 'px';
+        }
+        function openFontDialog() {
+            closeMenus();
+            fontBackup = { ...noteCfg };
+            const sz = $('#nfSize');
+            if (![...sz.options].some(o => +o.value === noteCfg.size)) {
+                const o = document.createElement('option'); o.value = noteCfg.size; o.textContent = noteCfg.size; sz.appendChild(o);
+            }
+            $('#nfEn').value = noteCfg.fontEn; $('#nfKm').value = noteCfg.fontKm; sz.value = noteCfg.size;
+            updateFontPreview();
+            document.getElementById('fontDialog').classList.add('show');
+        }
+        function confirmFont() { fontBackup = null; saveNoteCfg(); closeDialog('fontDialog'); noteText.focus(); }
+        function cancelFont() {
+            if (fontBackup) { Object.assign(noteCfg, fontBackup); fontBackup = null; applyNoteFont(); }
+            closeDialog('fontDialog');
+        }
+
+        // ---- Print: the browser's own dialog; choosing "Save as PDF" there gives selectable text
+        async function printNote() {
+            commitText();
+            if (!noteText.value.trim()) { showMessage('Print', 'There is nothing to print yet. Type a note first.'); return; }
+            const pa = document.getElementById('printArea');
+            pa.textContent = noteText.value;
+            pa.style.fontFamily = fontStack({ fontEn: noteCfg.fontEn, fontKm: noteCfg.fontKm });
+            pa.style.fontSize = Math.max(8, noteCfg.size * 0.75) + 'pt';
+            await ensureFonts([{ fontEn: noteCfg.fontEn, fontKm: noteCfg.fontKm, text: noteText.value }]);
+            window.print();
+        }
+
+        // ---- Export as PDF -------------------------------------------------
+        // Built right here with no libraries. Each page is drawn on a canvas (so the
+        // browser's own text shaping gives correct Khmer) and stored as an image in
+        // a small hand-written PDF file.
+        const segWord = (typeof Intl !== 'undefined' && Intl.Segmenter) ? new Intl.Segmenter(undefined, { granularity: 'word' }) : null;
+        const segChar = (typeof Intl !== 'undefined' && Intl.Segmenter) ? new Intl.Segmenter(undefined, { granularity: 'grapheme' }) : null;
+        const splitWords = (line) => segWord ? [...segWord.segment(line)].map(x => x.segment) : line.split(/(\s+)/).filter(Boolean);
+        const splitChars = (str) => segChar ? [...segChar.segment(str)].map(x => x.segment) : Array.from(str);
+
+        // Wrap text to a pixel width. Khmer has no spaces, so the browser's word
+        // dictionary decides where lines may break.
+        function wrapForPdf(text, g, maxW) {
+            const out = [];
+            for (const raw of text.split('\n')) {
+                if (raw === '') { out.push(''); continue; }
+                let cur = '';
+                for (const seg of splitWords(raw)) {
+                    if (g.measureText(cur + seg).width <= maxW) { cur += seg; continue; }
+                    if (cur.trim() !== '') { out.push(cur.replace(/\s+$/, '')); cur = ''; }
+                    const piece = cur === '' ? seg.replace(/^\s+/, '') : seg;
+                    if (g.measureText(piece).width <= maxW) { cur = piece; continue; }
+                    cur = '';
+                    for (const ch of splitChars(piece)) {   // a single very long word: break by letter
+                        if (cur !== '' && g.measureText(cur + ch).width > maxW) { out.push(cur); cur = ''; }
+                        cur += ch;
+                    }
+                }
+                out.push(cur);
+            }
+            return out;
+        }
+
+        function buildPdf(jpegs, W, H, PW, PH) {
+            const enc = (str) => { const u = new Uint8Array(str.length); for (let i = 0; i < str.length; i++) u[i] = str.charCodeAt(i) & 255; return u; };
+            const chunks = []; let len = 0; const offsets = [];
+            const push = (u) => { chunks.push(u); len += u.length; };
+            const obj = (n, parts) => {
+                offsets[n] = len;
+                push(enc(`${n} 0 obj\n`));
+                parts.forEach(p => push(typeof p === 'string' ? enc(p) : p));
+                push(enc('\nendobj\n'));
+            };
+            const n = jpegs.length;
+            push(enc('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n'));
+            obj(1, ['<< /Type /Catalog /Pages 2 0 R >>']);
+            obj(2, [`<< /Type /Pages /Count ${n} /Kids [${jpegs.map((_, i) => `${3 + 3 * i} 0 R`).join(' ')}] >>`]);
+            jpegs.forEach((j, i) => {
+                const pg = 3 + 3 * i, ct = 4 + 3 * i, im = 5 + 3 * i;
+                const content = `q ${PW} 0 0 ${PH} 0 0 cm /Im0 Do Q`;
+                obj(pg, [`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /XObject << /Im0 ${im} 0 R >> >> /Contents ${ct} 0 R >>`]);
+                obj(ct, [`<< /Length ${content.length} >>\nstream\n${content}\nendstream`]);
+                obj(im, [`<< /Type /XObject /Subtype /Image /Width ${W} /Height ${H} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${j.length} >>\nstream\n`, j, '\nendstream']);
+            });
+            const xref = len, total = 3 * n + 3;
+            let x = `xref\n0 ${total}\n0000000000 65535 f \n`;
+            for (let i = 1; i < total; i++) x += String(offsets[i]).padStart(10, '0') + ' 00000 n \n';
+            push(enc(x + `trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`));
+            const out = new Uint8Array(len); let p = 0;
+            chunks.forEach(c => { out.set(c, p); p += c.length; });
+            return out;
+        }
+
+        async function exportPDF() {
+            commitText();
+            const text = noteText.value;
+            if (!text.trim()) { showMessage('Export as PDF', 'There is nothing to export yet. Type a note first.'); return; }
+            autosaveStatus.textContent = 'Exporting PDF...';
+            autosaveStatus.classList.remove('saved');
+            try {
+                const fam = { fontEn: noteCfg.fontEn, fontKm: noteCfg.fontKm };
+                await ensureFonts([{ ...fam, text }]);
+                try { await document.fonts.ready; } catch (e) {}
+
+                const S = 200 / 72;                       // canvas pixels per PDF point (200 dpi)
+                const PW = 595.28, PH = 841.89, M = 54;   // A4 in points, 0.75 inch margins
+                const W = Math.round(PW * S), H = Math.round(PH * S);
+                const fontPx = Math.max(8, noteCfg.size * 0.75) * S;
+                const lh = fontPx * 1.6;
+                const font = `${fontPx}px ${fontStack(fam)}`;
+
+                const c = document.createElement('canvas');
+                c.width = W; c.height = H;
+                const g = c.getContext('2d');
+                g.font = font;
+                const lines = wrapForPdf(text.replace(/\r/g, '').replace(/\t/g, '    '), g, (PW - 2 * M) * S);
+                const perPage = Math.max(1, Math.floor(((PH - 2 * M) * S) / lh));
+                const pageCount = Math.ceil(lines.length / perPage) || 1;
+
+                const jpegs = [];
+                for (let p = 0; p < pageCount; p++) {
+                    g.setTransform(1, 0, 0, 1, 0, 0);
+                    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+                    g.fillStyle = '#000'; g.font = font; g.textBaseline = 'top'; g.textAlign = 'left';
+                    lines.slice(p * perPage, (p + 1) * perPage).forEach((l, i) => {
+                        g.fillText(l, M * S, M * S + i * lh + (lh - fontPx) / 2);
+                    });
+                    if (pageCount > 1) {
+                        g.font = `${8 * S}px "Segoe UI",Arial,sans-serif`;
+                        g.fillStyle = '#777'; g.textAlign = 'center';
+                        g.fillText(`${p + 1} / ${pageCount}`, W / 2, H - (M * 0.6) * S);
+                    }
+                    const b64 = c.toDataURL('image/jpeg', 0.85).split(',')[1];
+                    const bin = atob(b64), bytes = new Uint8Array(bin.length);
+                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                    jpegs.push(bytes);
+                    await new Promise(r => setTimeout(r));   // keep the page responsive on long notes
+                }
+                const pdf = buildPdf(jpegs, W, H, PW, PH);
+                const base = (noteFileName || 'note').replace(/\.txt$/i, '');
+                downloadBlob(new Blob([pdf], { type: 'application/pdf' }), base + '.pdf');
+            } catch (err) {
+                showMessage('Export as PDF', 'Sorry, the PDF could not be created.');
+            } finally {
+                autosaveStatus.textContent = 'Session only';
+                autosaveStatus.classList.add('saved');
+            }
+        }
+
+        // ---- Opening a .txt file, toolbar, events, and the mode switch itself
+        function openNoteText(text, name) {
+            setMode('note');
+            noteText.value = String(text).replace(/^﻿/, '');
+            noteFileName = name;
+            refreshTitle(); updateNoteStats(); saveNoteToStorage();
+            noteText.scrollTop = 0; noteText.setSelectionRange(0, 0);
+            applyNoteFont();
+        }
+
+        function buildNoteBar() {
+            const svg = (n) => `<svg viewBox="0 0 24 24">${ICONS[n]}</svg>`;
+            const btn = (id, title, fn, icon) => `<button class="tbtn" id="${id}" title="${title}" onclick="${fn}">${svg(icon)}</button>`;
+            const sep = '<div class="tsep"></div>';
+            noteBar.innerHTML =
+                btn('nb-new', 'New (Ctrl+N)', 'newFile()', 'fnew') +
+                btn('nb-open', 'Open a .txt or .json file (Ctrl+O)', "document.getElementById('fileInput').click()", 'fopen') +
+                btn('nb-save', 'Save as .txt (Ctrl+S)', 'saveFile()', 'fsave') +
+                btn('nb-pdf', 'Export as PDF', 'exportPDF()', 'fpdf') +
+                sep +
+                btn('nb-undo', 'Undo (Ctrl+Z)', 'undo()', 'undo') +
+                btn('nb-redo', 'Redo (Ctrl+Y)', 'redo()', 'redo') +
+                sep +
+                btn('nb-wrap', 'Word wrap', 'toggleWordWrap()', 'wrap') +
+                btn('nb-font', 'Font - English and Khmer', 'openFontDialog()', 'font') +
+                '<div class="tspacer"></div>' +
+                btn('nb-theme', 'Personalize - change theme', 'openPersonalize()', 'palette');
+            updateWrapUI();
+        }
+
+        function initNote() {
+            try { noteText.value = sessionStorage.getItem(NOTE_KEY) || ''; } catch (e) {}
+            let cfg = null;
+            try { cfg = JSON.parse(sessionStorage.getItem(NOTE_CFG_KEY) || 'null'); } catch (e) {}
+            if (cfg && typeof cfg === 'object') {
+                if (hasKey(FONT_EN, cfg.fontEn)) noteCfg.fontEn = cfg.fontEn;
+                if (hasKey(FONT_KM, cfg.fontKm)) noteCfg.fontKm = cfg.fontKm;
+                noteCfg.size = clamp(+cfg.size || 14, 8, 72);
+                noteCfg.zoom = clamp(+cfg.zoom || 1, 0.5, 3);
+                noteWrap = !!cfg.wrap;
+            } else noteWrap = window.matchMedia('(max-width: 700px)').matches; // phones wrap by default
+            noteText.classList.toggle('wrap', noteWrap);
+            buildFontDialog(); buildNoteBar();
+            applyNoteFont();
+        }
+
+        noteText.addEventListener('input', () => { updateNoteStats(); saveNoteToStorage(); });
+        ['click', 'keyup'].forEach(ev => noteText.addEventListener(ev, updateNoteStats));
+        document.addEventListener('selectionchange', () => { if (mode === 'note' && document.activeElement === noteText) updateNoteStats(); });
+        noteText.addEventListener('keydown', (e) => {
+            // Tab types a tab (like Windows Notepad) instead of leaving the box
+            if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+                e.preventDefault(); document.execCommand('insertText', false, '\t');
+            }
+        });
+        noteText.addEventListener('wheel', (e) => {
+            if (e.ctrlKey || e.metaKey) { e.preventDefault(); noteZoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1); }
+        }, { passive: false });
+
+        function refreshStatus() {
+            const hint = document.getElementById('hint'), zl = document.getElementById('zoomLabel');
+            if (mode === 'note') {
+                hint.textContent = NOTE_HINT;
+                zl.textContent = Math.round(noteCfg.zoom * 100) + '%';
+                updateNoteStats();
+            } else {
+                hint.textContent = HINTS[tool] || '';
+                zl.textContent = Math.round(view.zoom * 100) + '%';
+                document.getElementById('statusPos').textContent = '0, 0';
+                updateStats();
+            }
+        }
+
+        function setMode(m) {
+            if (m !== 'sketch' && m !== 'note') return;
+            commitText(); closeMenus(); hideCtxMenu();
+            mode = m;
+            windowEl.dataset.mode = m;
+            document.getElementById('modeSketch').classList.toggle('on', m === 'sketch');
+            document.getElementById('modeNote').classList.toggle('on', m === 'note');
+            try { sessionStorage.setItem(MODE_KEY, m); } catch (e) {}
+            refreshTitle(); refreshStatus();
+            if (m === 'note') { applyNoteFont(); noteText.focus(); }
+            else requestAnimationFrame(() => { resizeCanvas(); });
+        }
+
+        function noteKeys(e, k, mod) {
+            if (document.querySelector('.dialog-overlay.show')) return;
+            if (e.key === 'F5') { e.preventDefault(); insertTimeDate(); return; }
+            if (!mod) return;
+            if (k === 'g') { e.preventDefault(); showGoTo(); }
+            else if (k === '=' || k === '+') { e.preventDefault(); noteZoomBy(1.1); }
+            else if (k === '-') { e.preventDefault(); noteZoomBy(1 / 1.1); }
+            else if (k === '0') { e.preventDefault(); noteZoomReset(); }
+        }
+
+        // =====================================================================
         //  Keyboard
         // =====================================================================
         document.addEventListener('keydown', (e) => {
@@ -2705,9 +3266,11 @@
                 if (document.getElementById('saveAsDialog').classList.contains('show')) cancelSaveAs();
                 else if (document.getElementById('messageDialog').classList.contains('show')) closeDialog('messageDialog');
                 else if (document.getElementById('themeDialog').classList.contains('show')) closeDialog('themeDialog');
+                else if (document.getElementById('goToDialog').classList.contains('show')) closeDialog('goToDialog');
+                else if (document.getElementById('fontDialog').classList.contains('show')) cancelFont();
                 else if (ctxMenu.classList.contains('show')) hideCtxMenu();
                 else if (pendingAction) confirmResult('cancel');
-                else if (!textEditor) {
+                else if (mode === 'sketch' && !textEditor) {
                     if (action) cancelAction();
                     else if (selected.size) setSelected([]);
                     else if (tool !== 'select') setTool('select');
@@ -2718,6 +3281,11 @@
             if (mod && k === 's') { e.preventDefault(); saveFile(); return; }
             if (mod && k === 'o') { e.preventDefault(); fileInput.click(); return; }
             if (mod && k === 'n') { e.preventDefault(); newFile(); return; }
+            if (mode === 'note') {
+                if (mod && k === 'p') { e.preventDefault(); printNote(); return; }
+                noteKeys(e, k, mod);
+                return;
+            }
 
             if (e.target.closest && e.target.closest('input,textarea')) return;
             if (document.querySelector('.dialog-overlay.show')) return;
@@ -2791,6 +3359,10 @@
         setTool('select');
         loadFromStorage();
         updatePanel();
+        initNote();
+        let startMode = 'sketch';
+        try { if (sessionStorage.getItem(MODE_KEY) === 'note') startMode = 'note'; } catch (e) {}
+        setMode(startMode);
     </script>
 </body>
 </html>
